@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monesito</title>
+  <meta name="apple-mobile-web-app-title" content="Monesito">
+  <meta name="application-name" content="Monesito">
+  <link rel="icon" href="icons/favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="icons/favicon-48.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <script>
+    try {
+      var r = document.documentElement;
+      var t = localStorage.getItem('mon_theme');
+      var a = localStorage.getItem('mon_accent');
+      if (t) r.setAttribute('data-theme', t);
+      if (a) r.setAttribute('data-accent', a);
+      if (a === 'custom') {
+        var v = JSON.parse(localStorage.getItem('mon_accent_vars') || 'null');
+        if (v) {
+          r.style.setProperty('--accent', v.a);
+          r.style.setProperty('--accent2', v.b);
+          r.style.setProperty('--accent-rgb', v.ar);
+          r.style.setProperty('--accent2-rgb', v.br);
+        }
+      }
+    } catch (e) {}
+  </script>
+  <meta name="theme-color" content="#060606">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+  <div id="erroJs" class="erro-js" style="display: none;"></div>
+
+  <!-- TOPO: débito rápido | saldo | configurações -->
+  <header class="topbar">
+    <button id="quickDebitBtn" class="fire-btn js-debit-btn" title="Débito rápido">
+      <i class="fa-solid fa-wallet"></i>
+    </button>
+    <div class="topbar-center">
+      <span class="topbar-label">Saldo do mês</span>
+      <span class="topbar-saldo js-saldo" id="saldoTopo">R$ 0,00</span>
+    </div>
+    <button id="btnOpenSettings" class="icon-btn" title="Configurações">
+      <i class="fa-solid fa-gear"></i>
+    </button>
+  </header>
+
+  <main class="main-content">
+
+    <!-- MÊS -->
+    <section class="card month-card">
+      <div class="resumo-linha"><span id="mesResumo"></span><span id="mesPct"></span></div>
+      <div class="progress-bar-container"><div class="progress-bar" id="mesBarra"></div></div>
+      <div class="form-group">
+        <label>Saldo inicial do mês:</label>
+        <div class="inline-row">
+          <input type="text" id="inicialInput" inputmode="decimal" placeholder="Ex: 2900">
+          <button type="button" class="btn-action btn-add" id="btnDefinirInicial">Definir</button>
+        </div>
+      </div>
+      <button type="button" class="btn-link" id="btnToggleLanc">
+        <i class="fa-solid fa-receipt"></i> Lançamentos (<span id="lancCount">0</span>)
+      </button>
+      <div id="lancamentosBox" class="lanc-box" style="display: none;">
+        <div id="listaLanc" class="lista"></div>
+        <button type="button" class="btn-modal-cancel" id="btnNovoMes" style="margin-top: 14px;">Começar novo mês</button>
+      </div>
+    </section>
+
+    <!-- BLOCOS QUE EXPANDEM -->
+    <div class="tiles">
+      <button type="button" class="tile" id="tileCaixinha" data-view="view-caixinha">
+        <i class="fa-solid fa-piggy-bank"></i>
+        <span class="tile-label">Caixinha</span>
+        <span class="tile-info" id="tileCxInfo"></span>
+      </button>
+      <button type="button" class="tile" id="tileCompras" data-view="view-compras">
+        <i class="fa-solid fa-cart-shopping"></i>
+        <span class="tile-label">Compras</span>
+        <span class="tile-info" id="tileCompInfo"></span>
+      </button>
+    </div>
+
+  </main>
+
+  <!-- ===== TELA EXPANDIDA: CAIXINHA ===== -->
+  <section id="view-caixinha" class="expand-view">
+    <div class="view-header">
+      <button type="button" class="icon-btn view-back" title="Voltar"><i class="fa-solid fa-arrow-left"></i></button>
+      <h1 class="view-title"><i class="fa-solid fa-piggy-bank"></i> Caixinha</h1>
+      <span class="view-saldo js-saldo">R$ 0,00</span>
+      <button type="button" class="fire-btn fire-btn-small js-debit-btn" title="Débito rápido"><i class="fa-solid fa-wallet"></i></button>
+    </div>
+
+    <div class="view-body">
+
+      <div class="card cx-hero">
+        <div class="cx-hero-label">Total na caixinha</div>
+        <div class="cx-hero-total" id="cxTotal">R$ 0,00</div>
+        <div class="cx-bar" id="cxBar"></div>
+        <div class="cx-parts">
+          <div class="cx-part">
+            <span class="cx-part-nome"><span class="cx-dot" style="background: #3b82f6;"></span> Carro</span>
+            <strong id="cxCarro">R$ 0,00</strong>
+            <small id="cxCarroPct"></small>
+          </div>
+          <div class="cx-part">
+            <span class="cx-part-nome"><span class="cx-dot" style="background: #f59e0b;"></span> Casa</span>
+            <strong id="cxCasa">R$ 0,00</strong>
+            <small id="cxCasaPct"></small>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-coins"></i> Movimentar</h2>
+        <div class="form-group">
+          <label>Valor (R$):</label>
+          <input type="text" id="cxValor" class="input-valor" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off">
+        </div>
+        <div id="cxPreview" class="cx-preview"></div>
+        <div class="form-group" style="margin-top: 12px;">
+          <label>Ao retirar, tirar de:</label>
+          <select id="cxRetirarDe" class="lista-input">
+            <option value="prop">Proporcional (Carro e Casa)</option>
+            <option value="carro">Só do Carro</option>
+            <option value="casa">Só da Casa</option>
+          </select>
+        </div>
+        <div class="action-buttons">
+          <button type="button" class="btn-action btn-add" id="btnCxDepositar"><i class="fa-solid fa-arrow-down"></i> Depositar</button>
+          <button type="button" class="btn-action btn-ghost" id="btnCxRetirar"><i class="fa-solid fa-arrow-up"></i> Retirar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-scale-balanced"></i> Divisão dos depósitos</h2>
+        <p class="section-desc" style="margin-top: 0;">Todo valor depositado é dividido nesta proporção. Exemplo: Carro 600 e Casa 300 = 2/3 para o carro e 1/3 para a casa.</p>
+        <div class="inline-row">
+          <div class="form-group" style="flex: 1;">
+            <label>Carro (R$)</label>
+            <input type="text" id="cxPesoCarro" inputmode="decimal" placeholder="600">
+          </div>
+          <div class="form-group" style="flex: 1;">
+            <label>Casa (R$)</label>
+            <input type="text" id="cxPesoCasa" inputmode="decimal" placeholder="300">
+          </div>
+        </div>
+        <p class="cx-proporcao" id="cxProporcao"></p>
+        <button type="button" class="btn-action btn-add btn-full" id="btnCxSalvarDivisao">Salvar divisão</button>
+      </div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-sliders"></i> Ajustar total guardado</h2>
+        <p class="section-desc" style="margin-top: 0;">Já tem dinheiro guardado? Informe o total real e o app divide entre Carro e Casa.</p>
+        <div class="inline-row">
+          <input type="text" id="cxTotalReal" inputmode="decimal" placeholder="Ex: 2700">
+          <button type="button" class="btn-action btn-add" id="btnCxAjustar">Ajustar</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><i class="fa-solid fa-clock-rotate-left"></i> Histórico</h2>
+        <div id="cxHistorico" class="lista"></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ===== TELA EXPANDIDA: COMPRAS (post-its) ===== -->
+  <section id="view-compras" class="expand-view">
+    <div class="view-header">
+      <button type="button" class="icon-btn view-back" title="Voltar"><i class="fa-solid fa-arrow-left"></i></button>
+      <h1 class="view-title"><i class="fa-solid fa-cart-shopping"></i> Compras</h1>
+      <span class="view-saldo js-saldo">R$ 0,00</span>
+      <button type="button" class="fire-btn fire-btn-small js-debit-btn" title="Débito rápido"><i class="fa-solid fa-wallet"></i></button>
+    </div>
+
+    <div class="view-body">
+      <p class="section-desc" style="margin-top: 0;">Crie listas em cartões coloridos, marque o que comprou e debite o total do saldo.</p>
+
+      <div class="notes-creator-box">
+        <h2><i class="fa-solid fa-pen-to-square"></i> Nova Lista</h2>
+        <div class="notes-creator-fields">
+          <input type="text" id="newListTitleInput" class="notes-creator-title" placeholder="Nome da lista (ex: Mercado)...">
+          <textarea id="newListItemsInput" class="notes-creator-textarea" placeholder="Itens, um por linha (opcional)..."></textarea>
+          <div class="notes-creator-footer">
+            <div class="sticky-colors" id="newListColorPicker">
+              <button type="button" class="sticky-color-dot dot-amarelo" data-color="amarelo" title="Amarelo"></button>
+              <button type="button" class="sticky-color-dot dot-rosa" data-color="rosa" title="Rosa"></button>
+              <button type="button" class="sticky-color-dot dot-azul" data-color="azul" title="Azul"></button>
+              <button type="button" class="sticky-color-dot dot-verde active" data-color="verde" title="Verde"></button>
+              <button type="button" class="sticky-color-dot dot-laranja" data-color="laranja" title="Laranja"></button>
+              <button type="button" class="sticky-color-dot dot-lilas" data-color="lilas" title="Lilás"></button>
+            </div>
+            <button type="button" class="btn-action btn-add-note" id="btnAddList"><i class="fa-solid fa-plus"></i> Criar Lista</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="notes-header-list" style="margin-top: 15px;">
+        <h2><i class="fa-solid fa-note-sticky"></i> Minhas Listas</h2>
+      </div>
+      <div id="stickyListsBoard" class="sticky-board"></div>
+    </div>
+  </section>
+
+  <!-- ===== TELA EXPANDIDA: CONFIGURAÇÕES (igual ao Jarvito) ===== -->
+  <section id="view-settings" class="expand-view">
+    <div class="view-header">
+      <button type="button" class="icon-btn view-back" title="Voltar"><i class="fa-solid fa-arrow-left"></i></button>
+      <h1 class="view-title"><i class="fa-solid fa-gear"></i> Configurações</h1>
+    </div>
+
+    <div class="view-body">
+      <p class="section-desc" style="margin-top: 0;">Personalize as cores do app. As escolhas ficam salvas neste dispositivo.</p>
+
+      <div class="settings-grid">
+        <div class="settings-card">
+          <h2><i class="fa-solid fa-circle-half-stroke"></i> Tema de fundo</h2>
+          <p>Escolha entre o fundo escuro (padrão) e o claro.</p>
+          <div class="theme-options">
+            <button class="theme-option" data-theme="dark"><span class="theme-preview dark"></span>Escuro</button>
+            <button class="theme-option" data-theme="light"><span class="theme-preview light"></span>Claro</button>
+          </div>
+        </div>
+
+        <div class="settings-card">
+          <h2><i class="fa-solid fa-palette"></i> Cor de realce</h2>
+          <p>Muda a cor dos ícones, botões, barras e detalhes. Escolha uma pronta ou crie a sua.</p>
+          <div class="accent-options">
+            <button class="accent-swatch" data-accent="verde"><span class="accent-dot" style="background: linear-gradient(135deg, #16a34a, #059669);"></span>Verde</button>
+            <button class="accent-swatch" data-accent="roxo"><span class="accent-dot" style="background: linear-gradient(135deg, #8b5cf6, #ec4899);"></span>Roxo</button>
+            <button class="accent-swatch" data-accent="azul"><span class="accent-dot" style="background: linear-gradient(135deg, #3b82f6, #06b6d4);"></span>Azul</button>
+            <button class="accent-swatch" data-accent="laranja"><span class="accent-dot" style="background: linear-gradient(135deg, #f97316, #ef4444);"></span>Laranja</button>
+            <button class="accent-swatch" data-accent="rosa"><span class="accent-dot" style="background: linear-gradient(135deg, #ec4899, #d946ef);"></span>Rosa</button>
+            <button class="accent-swatch" data-accent="dourado"><span class="accent-dot" style="background: linear-gradient(135deg, #eab308, #f97316);"></span>Dourado</button>
+            <button class="accent-swatch" data-accent="vermelho"><span class="accent-dot" style="background: linear-gradient(135deg, #ef4444, #f43f5e);"></span>Vermelho</button>
+            <div class="accent-swatch accent-swatch-custom" data-accent="custom" title="Escolher outra cor">
+              <div class="accent-custom-wrap">
+                <span class="accent-dot accent-dot-custom"></span>
+                <input type="color" id="accentColorInput" class="accent-color-input" value="#16a34a" aria-label="Escolher cor personalizada">
+              </div>
+              Personalizada
+            </div>
+          </div>
+          <div id="accentCustomNote" class="accent-custom-note"></div>
+        </div>
+
+        <div class="settings-card">
+          <h2><i class="fa-solid fa-cloud"></i> Sincronização</h2>
+          <p>Use o mesmo código em todos os seus dispositivos para sincronizar os dados. Sem código, os dados ficam só neste aparelho.</p>
+          <p id="syncStatus" class="sync-status"></p>
+          <button class="btn-action btn-add" id="btnOpenSync">Código de sincronização</button>
+        </div>
+
+        <div>
+          <button class="btn-modal-cancel" id="btnResetTheme">Restaurar cores padrão</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <datalist id="debitoSugestoes"></datalist>
+
+  <!-- MODAL: DÉBITO RÁPIDO -->
+  <div id="modalDebito" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Débito rápido</h2>
+        <button class="btn-close-modal" id="btnCloseDebito">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Valor gasto:</label>
+          <input type="text" id="debitoValor" class="input-valor" inputmode="decimal" placeholder="R$ 0,00" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>O que foi? (opcional)</label>
+          <input type="text" id="debitoDesc" list="debitoSugestoes" placeholder="Ex: Mercado" autocomplete="off">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnCancelDebito">Cancelar</button>
+        <button class="btn-modal-submit" id="btnSaveDebito" style="background: #22c55e;">Debitar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CÓDIGO DE SINCRONIZAÇÃO -->
+  <div id="modalSyncCode" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>Sincronização entre Dispositivos</h2>
+        <button class="btn-close-modal" id="btnCloseSyncModal">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Código de Sincronização:</label>
+          <input type="text" id="syncCodeInput" placeholder="Ex: minha-grana-7f3k9x2" autocomplete="off">
+        </div>
+        <p class="sync-aviso">Use o mesmo código em todos os dispositivos. Se o código já tiver dados na nuvem, eles substituem os deste aparelho. Atenção: quem souber o código vê e edita seus dados financeiros, então use um código longo e difícil de adivinhar.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-modal-cancel" id="btnDisconnectSync" style="display: none;">Desconectar</button>
+        <button class="btn-modal-submit" id="btnConfirmSyncCode">Conectar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('error', function (e) {
+      var b = document.getElementById('erroJs');
+      if (!b) return;
+      var alvo = e.target;
+      if (alvo && alvo.tagName === 'SCRIPT') {
+        var src = alvo.src || '';
+        if (src.indexOf('gstatic') > -1) return;
+        b.textContent = 'Não foi possível carregar o arquivo: ' + src.split('/').pop() + '. Confira o nome e a pasta dele.';
+      } else {
+        b.textContent = 'Erro no app: ' + (e.message || 'desconhecido') + (e.filename ? ' (' + e.filename.split('/').pop() + ', linha ' + e.lineno + ')' : '');
+      }
+      b.style.display = 'block';
+    }, true);
+  </script>
+  <script src="script.js"></script>
+  <script>
+    window.addEventListener('load', function () {
+      if (window.__monesitoOk) return;
+      var b = document.getElementById('erroJs');
+      if (b && b.style.display === 'none') {
+        b.textContent = 'O script.js não iniciou. Confira se ele está na mesma pasta do index.html, com o nome exato script.js, e aperte Ctrl+F5.';
+        b.style.display = 'block';
+      }
+    });
+  </script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('sw.js').catch(function (err) {
+          console.error('Service worker não registrado:', err);
+        });
+      });
+    }
+  </script>
+</body>
+</html>
